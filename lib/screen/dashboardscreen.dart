@@ -168,7 +168,6 @@ floatingActionButtonLocation:
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
         BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: "Schedule"),
-        BottomNavigationBarItem(icon: Icon(Icons.add), label: ""),
         BottomNavigationBarItem(icon: Icon(Icons.folder), label: "documents"),
         BottomNavigationBarItem(icon: Icon(Icons.menu), label: "menu"),
       ],
