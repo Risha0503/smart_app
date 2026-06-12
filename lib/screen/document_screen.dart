@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:smart_app/screen/app_document.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:smart_app/screen/app_document.dart';
 
 class DocumentScreen extends StatefulWidget {
   final List<AppDocument> documents;
@@ -21,6 +21,9 @@ class _DocumentScreenState extends State<DocumentScreen> {
     "All",
     "Expiring Soon",
     "Expired",
+    "No Status",
+    "In Review",
+    "Done",
   ];
 
   Future<void> renameDocument(AppDocument document) async {
@@ -139,11 +142,42 @@ class _DocumentScreenState extends State<DocumentScreen> {
     }
   }
 
-  String formatDate(DateTime? date) {
-    if (date == null) {
-      return "No due date";
-    }
+  Future<void> changeStatus(AppDocument document) async {
+    final statuses = [
+      "In Review",
+      "Done",
+      "No Status",
+      "Expired",
+      "Expiring Soon",
+    ];
 
+    final selectedStatus = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Change status"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: statuses.map((status) {
+              return ListTile(
+                title: Text(status),
+                onTap: () => Navigator.pop(context, status),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+
+    if (selectedStatus != null) {
+      setState(() {
+        document.status = selectedStatus;
+      });
+    }
+  }
+
+  String formatDate(DateTime? date) {
+    if (date == null) return "No due date";
     return "${date.day}-${date.month}-${date.year}";
   }
 
@@ -155,23 +189,11 @@ class _DocumentScreenState extends State<DocumentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Search bar
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 230, 230, 230),
-                borderRadius: BorderRadius.circular(8.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    spreadRadius: 1,
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                color: const Color(0xFFE6E6E6),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: const TextField(
                 decoration: InputDecoration(
@@ -182,17 +204,13 @@ class _DocumentScreenState extends State<DocumentScreen> {
               ),
             ),
 
-            const SizedBox(height: 16.0),
+            const SizedBox(height: 16),
 
             Row(
               children: [
                 const Text(
                   'Folders',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
                 DropdownButton<String>(
@@ -217,7 +235,7 @@ class _DocumentScreenState extends State<DocumentScreen> {
               style: const TextStyle(fontSize: 14, color: Colors.grey),
             ),
 
-            const SizedBox(height: 16.0),
+            const SizedBox(height: 16),
 
             Container(
               padding: const EdgeInsets.all(16),
@@ -262,22 +280,23 @@ class _DocumentScreenState extends State<DocumentScreen> {
                           subtitle: Text(
                             "Category: ${document.category}\n"
                             "Folder: ${document.folder}\n"
+                            "Status: ${document.status}\n"
                             "Due: ${formatDate(document.dueDate)}",
                           ),
-                          isThreeLine: true,
+                          isThreeLine: false,
                           onTap: () {
-  final path = document.file.path;
+                            final path = document.file.path;
 
-  if (path != null) {
-    OpenFilex.open(path);
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Could not open this file"),
-      ),
-    );
-  }
-},
+                            if (path != null) {
+                              OpenFilex.open(path);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Could not open this file"),
+                                ),
+                              );
+                            }
+                          },
                           trailing: PopupMenuButton<String>(
                             onSelected: (value) {
                               if (value == "rename") {
@@ -288,6 +307,8 @@ class _DocumentScreenState extends State<DocumentScreen> {
                                 changeFolder(document);
                               } else if (value == "dueDate") {
                                 assignDueDate(document);
+                              } else if (value == "status") {
+                                changeStatus(document);
                               }
                             },
                             itemBuilder: (context) => const [
@@ -306,6 +327,10 @@ class _DocumentScreenState extends State<DocumentScreen> {
                               PopupMenuItem(
                                 value: "dueDate",
                                 child: Text("Assign due date"),
+                              ),
+                              PopupMenuItem(
+                                value: "status",
+                                child: Text("Change status"),
                               ),
                             ],
                           ),

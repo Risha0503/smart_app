@@ -6,6 +6,7 @@ class AppDocument {
   String category;
   String folder;
   DateTime? dueDate;
+  String status;
 
   AppDocument({
     required this.file,
@@ -13,5 +14,6 @@ class AppDocument {
     required this.category,
     this.folder = "General",
     this.dueDate,
+    this.status = "No Status",
   });
 }

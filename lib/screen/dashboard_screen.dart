@@ -3,7 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:smart_app/screen/app_document.dart';
+import 'package:smart_app/models/app_tasks.dart';
 import 'package:smart_app/screen/document_screen.dart';
+import 'package:smart_app/screen/document_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, required this.title});
@@ -26,6 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   final List<AppDocument> documents = [];
+  final List<AppTask> tasks = [];
 
   String autoCategorize(String fileName) {
     final name = fileName.toLowerCase();
@@ -104,6 +107,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> createTask() async {
+    final titleController = TextEditingController();
+    final assignedController = TextEditingController();
+
+    final newTask = await showDialog<AppTask>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Create task"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: "Task title"),
+              ),
+              TextField(
+                controller: assignedController,
+                decoration: const InputDecoration(labelText: "Assigned to"),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () {
+                if (titleController.text.trim().isEmpty) return;
+
+                Navigator.pop(
+                  context,
+                  AppTask(
+                    title: titleController.text.trim(),
+                    assignedTo: assignedController.text.trim().isEmpty
+                        ? "Unassigned"
+                        : assignedController.text.trim(),
+                  ),
+                );
+              },
+              child: const Text("Save"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newTask != null) {
+      setState(() {
+        tasks.add(newTask);
+      });
+    }
+  }
+
+  void openDocumentList(String title, List<AppDocument> filteredDocuments) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) {
+          return DocumentListScreen(
+            title: title,
+            documents: filteredDocuments,
+          );
+        },
+      ),
+    );
+  }
+
   Widget getSelectedPage() {
     if (selectedIndex == 0) {
       return buildHomeScreen();
@@ -117,28 +189,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget buildHomeScreen() {
-    final expiredDocuments = documents.where((doc) {
-      return doc.dueDate != null && doc.dueDate!.isBefore(DateTime.now());
-    }).length;
+    final now = DateTime.now();
 
-    final expiringDocuments = documents.where((doc) {
-      if (doc.dueDate == null) return false;
-
-      final difference = doc.dueDate!.difference(DateTime.now()).inDays;
-      return difference >= 0 && difference <= 7;
-    }).length;
-
-    final inReviewDocuments = documents.where((doc) {
-      return doc.category == "Uncategorized" || doc.category == "Other";
-    }).length;
-
-    final doneDocuments = documents.where((doc) {
-      return doc.category != "Uncategorized" && doc.category != "Other";
-    }).length;
-
-    final upcomingDocuments = documents.where((doc) {
-      return doc.dueDate != null;
+    final expiredList = documents.where((doc) {
+      return doc.dueDate != null && doc.dueDate!.isBefore(now);
     }).toList();
+
+    final expiringList = documents.where((doc) {
+      if (doc.dueDate == null) return false;
+      final difference = doc.dueDate!.difference(now).inDays;
+      return difference >= 0 && difference <= 7;
+    }).toList();
+
+    final noStatusList = documents.where((doc) {
+      return doc.status == "No Status";
+    }).toList();
+
+    final doneList = documents.where((doc) {
+      return doc.status == "Done";
+    }).toList();
+
+    final inReviewList = documents.where((doc) {
+      return doc.status == "In Review";
+    }).toList();
+
+    final upcomingDocuments = expiringList;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -147,17 +222,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             searchBar(),
-
             const SizedBox(height: 24),
 
             Row(
               children: [
                 const Text(
                   "Overview",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
                 Container(
@@ -169,14 +240,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: "this week",
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 12,
-                      ),
+                      style: const TextStyle(color: Colors.black, fontSize: 12),
                       items: const [
                         DropdownMenuItem(
                           value: "this week",
                           child: Text("this week"),
+                        ),
+                        DropdownMenuItem(
+                          value: "this month",
+                          child: Text("this month"),
+                        ),
+                        DropdownMenuItem(
+                          value: "this year",
+                          child: Text("this year"),
                         ),
                       ],
                       onChanged: (value) {},
@@ -198,31 +274,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 overviewCard(
                   title: "Expiring",
-                  count: expiringDocuments,
+                  count: expiringList.length,
                   icon: Icons.warning,
                   iconColor: Colors.red,
                   backgroundColor: const Color(0xFFFFDD8D),
+                  onTap: () {
+                    openDocumentList("Expiring Documents", expiringList);
+                  },
                 ),
                 overviewCard(
                   title: "Expired",
-                  count: expiredDocuments,
+                  count: expiredList.length,
                   icon: Icons.error,
                   iconColor: Colors.red,
                   backgroundColor: const Color(0xFFFF9E9E),
+                  onTap: () {
+                    openDocumentList("Expired Documents", expiredList);
+                  },
                 ),
                 overviewCard(
-                  title: "in review",
-                  count: inReviewDocuments,
+                  title: "In Review",
+                  count: inReviewList.length,
                   icon: Icons.description,
                   iconColor: const Color(0xFF003366),
                   backgroundColor: const Color(0xFFA9C9FF),
+                  onTap: () {
+                    openDocumentList("In Review Documents", inReviewList);
+                  },
                 ),
                 overviewCard(
                   title: "Done",
-                  count: doneDocuments,
+                  count: doneList.length,
                   icon: Icons.check_circle,
                   iconColor: const Color(0xFF003366),
                   backgroundColor: const Color(0xFFC6F3D6),
+                  onTap: () {
+                    openDocumentList("Done Documents", doneList);
+                  },
+                ),
+                overviewCard(
+                  title: "No Status",
+                  count: noStatusList.length,
+                  icon: Icons.description,
+                  iconColor: const Color(0xFF003366),
+                  backgroundColor: const Color(0xFFA9C9FF),
+                  onTap: () {
+                    openDocumentList("No Status Documents", noStatusList);
+                  },
                 ),
               ],
             ),
@@ -243,15 +341,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 28),
 
-            sectionHeader("Tasks"),
+            sectionHeader("Tasks", onPressed: createTask),
 
             const SizedBox(height: 12),
 
-            documents.isEmpty
-                ? emptyCard("No tasks yet")
+            tasks.isEmpty
+                ? emptyCard("No tasks assigned yet")
                 : Column(
-                    children: documents.take(3).map((doc) {
-                      return taskCard(doc);
+                    children: tasks.take(3).map((task) {
+                      return taskCard(task);
                     }).toList(),
                   ),
           ],
@@ -283,77 +381,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required IconData icon,
     required Color iconColor,
     required Color backgroundColor,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const Positioned(
-            top: 0,
-            right: 0,
-            child: Icon(Icons.chevron_right, size: 22),
-          ),
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                Text(
-                  count.toString(),
-                  style: const TextStyle(fontSize: 18),
-                ),
-              ],
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const Positioned(
+              top: 0,
+              right: 0,
+              child: Icon(Icons.chevron_right, size: 22),
+            ),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  Text(
+                    count.toString(),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget sectionHeader(String title) {
+  Widget sectionHeader(String title, {VoidCallback? onPressed}) {
     return Row(
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const Spacer(),
         OutlinedButton(
-          onPressed: () {},
+          onPressed: onPressed,
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             minimumSize: const Size(0, 34),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Text("See all", style: TextStyle(fontSize: 12)),
-              SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 16),
+              Text(
+                onPressed == null ? "See all" : "Add",
+                style: const TextStyle(fontSize: 12),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                onPressed == null ? Icons.chevron_right : Icons.add,
+                size: 16,
+              ),
             ],
           ),
         ),
@@ -362,43 +468,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget deadlineCard(AppDocument document) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F4F4),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.redAccent),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning, color: Colors.red),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  document.displayName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  "Expires ${formatDate(document.dueDate)}",
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 11,
+    return InkWell(
+      onTap: () {
+        openDocumentList("Upcoming Deadline", [document]);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4F4F4),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.redAccent),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.warning, color: Colors.red),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    document.displayName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                ),
-              ],
+                  Text(
+                    "Expires ${formatDate(document.dueDate)}",
+                    style: const TextStyle(color: Colors.red, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget taskCard(AppDocument document) {
+  Widget taskCard(AppTask task) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(10),
@@ -411,17 +519,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const Icon(Icons.assignment, size: 22),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              document.displayName,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  task.status,
+                  style: const TextStyle(color: Colors.green, fontSize: 12),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 8),
-          const CircleAvatar(
+          CircleAvatar(
             radius: 16,
-            backgroundColor: Color(0xFF003366),
-            child: Icon(Icons.person, color: Colors.white, size: 16),
+            backgroundColor: const Color(0xFF003366),
+            child: Text(
+              task.assignedTo.isEmpty
+                  ? "?"
+                  : task.assignedTo[0].toUpperCase(),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
