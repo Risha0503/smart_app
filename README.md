@@ -57,7 +57,7 @@ Useful links:
 1. Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone <https://github.com/Risha0503/smart_app.git>
 ```
 
 2. Navigate to the project directory:
